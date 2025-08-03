@@ -1,3 +1,3 @@
-# Decomposing Direct and Indirect Biases in Linear Models
+# Decomposing Direct and Indirect Biases in Linear Models under Demographic Parity Constraint
 
-This repository presents the main empirical results of the article.
+This repository presents the main empirical results of our article.
