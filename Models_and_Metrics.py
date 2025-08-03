@@ -659,31 +659,15 @@ class Metrics:
         ###########################################################################
 
         def unfairness_computation(pred_col, S_variable, test_dataset):
-            """Compute the *unfairness* as the weighted L² distance between group
-            empirical quantile functions.
+            """_summary_
 
-            The statistic implemented is
+            Args:
+                pred_col (_type_): _description_
+                S_variable (_type_): _description_
+                test_dataset (_type_): _description_
 
-            .. math::
-                \sum_s p_s \left( \sum_{q \in Q} \bigl[ F^{-1}_{s}(q) - F^{-1}(q) \bigr]^2 \right)^{1/2},
-
-            where :math:`p_s` is the sample proportion of sensitive group *s*,
-            :math:`F^{-1}_{s}` the group‑specific quantile function of the
-            predictions, and :math:`F^{-1}` the overall quantile function.
-
-            Parameters
-            ----------
-            pred_col : str
-                Name of the column containing predicted values.
-            S_variable : str
-                Sensitive attribute used to partition the data.
-            test_dataset : pandas.DataFrame
-                Dataset that includes *pred_col* and *S_variable*.
-
-            Returns
-            -------
-            float
-                The unfairness score (lower is better; 0 = perfectly fair).
+            Returns:
+                _type_: _description_
             """
             probs = np.linspace(0.01, 0.99, num=100)
             eqf = np.quantile(test_dataset[pred_col], probs)
@@ -699,119 +683,21 @@ class Metrics:
             return unfairness
         
 
-        def calculate_marginal_contributions(df, feature_cols, s_col, param_our_model):
-            """
-            Calcule les contributions marginales en utilisant les moyennes et variances conditionnelles pré-calculées.
-            
-            Paramètres:
-            df: pandas DataFrame contenant les features et la variable de stratification
-            feature_cols: liste des noms de colonnes des features X
-            s_col: nom de la colonne pour la variable de stratification S
-            param_our_model: dictionnaire contenant les coefficients et statistiques conditionnelles
-            
-            Retourne:
-            DataFrame avec les contributions marginales pour chaque feature
-            """
-            # Récupérer les coefficients du modèle
-            beta_j_star = param_our_model['beta']
-            gamma_star = param_our_model['gamma']
-            
-            n_features = len(feature_cols)
-            unique_groups = df[s_col].unique()
-            
-            # Initialiser les résultats
-            results = {
-                'Feature': feature_cols,
-                'Mean': [],
-                'Std':[],
-                'Beta_j_star': beta_j_star,
-                'Var_mu_j': [],
-                'Var_sigma_j': [],
-                'Cov_S_mu_j': [],
-                'Indirect_Mean_Bias': [],
-                'Indirect_Structural_Bias': [],
-                'Interaction_Effect': [],
-                'Total_Marginal_Contribution': []
-            }
-            
-            for j in range(n_features):
-                
-                # Calculer Var(μ_j^(S))
-                mean_mu_j = 0
-                mean_sigma_j=0
-                mean_S = 0
-
-                Mean=[]
-                Std=[]
-                for i in unique_groups:
-                    Mean.append(param_our_model[f'empirical_mean_{i}'][j])
-                    Std.append(param_our_model[f'Sigma_{i}'].iloc[j, j])
-                    mean_mu_j += param_our_model[f'p_{i}']*param_our_model[f'empirical_mean_{i}'][j]
-                    mean_sigma_j += param_our_model[f'p_{i}']*param_our_model[f'Sigma_{i}'].iloc[j, j]
-                    mean_S = param_our_model[f'p_{i}']*i
-
-                results['Mean'].append(Mean)
-                results['Std'].append(Std)
-
-                var_mu_j=0
-                for i in unique_groups:
-                    var_mu_j += param_our_model[f'p_{i}']*(param_our_model[f'empirical_mean_{i}'][j]-mean_mu_j)**2
-                results['Var_mu_j'].append(var_mu_j)
-                
-                indirect_mean_bias = (beta_j_star[j]**2) * var_mu_j
-
-                cov_S_mu_j=0
-                for i in unique_groups:
-                    cov_S_mu_j += param_our_model[f'p_{i}']*(param_our_model[f'empirical_mean_{i}'][j]-mean_mu_j)*(i-mean_S)
-
-                results['Cov_S_mu_j'].append(cov_S_mu_j)
-                interaction_effect = 2 * gamma_star * beta_j_star[j] * cov_S_mu_j
-
-                var_sigma_j =0
-                for i in unique_groups:
-                    var_sigma_j += param_our_model[f'p_{i}']*(param_our_model[f'Sigma_{i}'].iloc[j, j]-mean_sigma_j)**2
-                results['Var_sigma_j'].append(var_sigma_j)
-                indirect_structural_bias = (beta_j_star[j]**4) * var_sigma_j
-                
-                results['Indirect_Mean_Bias'].append(indirect_mean_bias)
-                results['Indirect_Structural_Bias'].append(indirect_structural_bias)
-                results['Interaction_Effect'].append(interaction_effect)
-                
-                # Contribution marginale totale
-                total_contribution = indirect_mean_bias + indirect_structural_bias + interaction_effect
-                results['Total_Marginal_Contribution'].append(total_contribution)
-            
-            return results
-
         ###########################################################################
         # Group‑weighted performance metrics
         ###########################################################################
 
         def group_weighted_r2(df, y_col, y_pred_col, group_col):
-            """Compute the group‑weighted R².
+            """Compute the group-weighted R^2.
 
-            The metric is defined as
+            Args:
+                df (_type_): _description_
+                y_col (_type_): _description_
+                y_pred_col (_type_): _description_
+                group_col (_type_): _description_
 
-            .. math::
-                R^2_W = \sum_s p_s \left[ 1 - \frac{\operatorname{Var}(Y - \hat{Y} \mid S=s)}{\operatorname{Var}(Y \mid S=s)} \right],
-
-            where :math:`p_s` is the prevalence of group *s*.
-
-            Parameters
-            ----------
-            df : pandas.DataFrame
-                Dataset that includes the true and predicted targets and the group label.
-            y_col : str
-                Column name of the true target variable.
-            y_pred_col : str
-                Column name of the predicted target variable.
-            group_col : str
-                Column name of the sensitive attribute.
-
-            Returns
-            -------
-            float
-                The group‑weighted coefficient of determination (higher is better; 1 = perfect).
+            Returns:
+                _type_: _description_
             """
             grouped = df.groupby(group_col)
             n_tot = len(df)
