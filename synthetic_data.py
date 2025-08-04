@@ -16,7 +16,6 @@ from sklearn.metrics import (
 # Configuration esthétique pour les graphiques
 sns.set_theme(style="whitegrid")
 plt.rcParams['figure.figsize'] = (10, 6)
-import mlflow
 from scipy import stats
 import math
 from equipy.fairness import FairWasserstein
@@ -31,7 +30,8 @@ from models_and_metrics import *
 class Data : 
 
     def generate_synthetic_data(nb_features, nb_obs, tho, additional_s, t_unfair, T_mean, T_std, t_correl, random_seed):
-        """Generate a syntetic dataset parametrized py (t_unfair, T_mean, T_std, t_correl)
+        """Generate synthetic dataset parametrized py (t_unfair, T_mean, T_std, t_correl).
+        This function enables to reproduce our results.
 
         Args:
             nb_features (_type_): _description_
@@ -57,29 +57,39 @@ class Data :
         param['S'] = np.random.binomial(1, param['q'], (nb_obs)) + 1 + additional_s * np.random.binomial(1, param['q'], (nb_obs))
         data = pd.DataFrame({"S": param['S']})
 
-        # Initialization of mean and std
+        # Generate means for each group
         n_binomial, p_binomial = 3, np.random.uniform(low=0.0, high=1.0, size=nb_features)
-        mu_1 = np.random.binomial(n_binomial, p_binomial, nb_features)
-        std_1 = np.random.uniform(low=0.0, high=2.0) * np.ones(nb_features)
-
+        mu_1, mu_2 = np.zeros(nb_features), np.zeros(nb_features)
+        
         if T_mean == 0: 
+            mu_1 += np.random.binomial(n_binomial, p_binomial, nb_features)
             mu_2 = mu_1
         else:
-            # Group-dependant mean
+            p_binomial_1 = np.random.uniform(low=0.0, high=1.0, size=nb_features)
+            mu_1 += np.random.binomial(n_binomial, p_binomial_1, nb_features)
             mu_2 = mu_1 + T_mean * np.ones(nb_features)
-        
-        if T_std == 0:  
-                std_2 = std_1
-        else:
-            # Group-dependant std
-            std_2 = std_1 + np.sqrt(T_std)* np.ones(nb_features)
         
         # Generate covariance matrices for each group
         if t_correl == 0:
-            # Independant feature case
+            # Independent features case (diagonal covariance)
+            if T_std == 0:
+                std_1 = np.random.uniform(low=0.0, high=2.0) * np.ones(nb_features)
+                std_2 = std_1
+            else:
+                std_1 = np.random.uniform(low=0.0, high=2.0, size=nb_features)
+                std_2 = std_1 + np.sqrt(T_std)* np.ones(nb_features)
+                
             cov_1 = np.diag(std_1**2)
             cov_2 = np.diag(std_2**2)
         else:
+            # Code for correlated cases remains unchanged
+            if T_std == 0:
+                std_1 = np.random.uniform(low=0.0, high=2.0) * np.ones(nb_features)
+                std_2 = std_1
+            else:
+                std_1 = np.random.uniform(low=0.0, high=2.0, size=nb_features)
+                std_2 = std_1 + np.sqrt(T_std)* np.ones(nb_features)
+                
             diag_1 = np.diag(std_1**2)
             diag_2 = np.diag(std_2**2)
             
@@ -90,12 +100,11 @@ class Data :
             if t_correl == 1:
                 corr_2 = corr_1
             else:
-                # Group-dependant correlations/covariances
                 A_2 = np.random.normal(0, 1, (nb_features, nb_features))
                 corr_2 = A_2.T @ A_2
                 corr_2 = corr_2 / np.outer(np.sqrt(np.diag(corr_2)), np.sqrt(np.diag(corr_2)))
             
-            # t_correl drives the correlation strengh
+            # Apply correlation strength
             corr_1 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_1
             corr_2 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_2
             
@@ -125,6 +134,105 @@ class Data :
             np.random.seed(None)
         
         return data, param
+
+
+    # def generate_synthetic_data(nb_features, nb_obs, tho, additional_s, t_unfair, T_mean, T_std, t_correl, random_seed):
+    #     """Generate a syntetic dataset parametrized by (t_unfair, T_mean, T_std, t_correl)
+    #        This function is a simpler implementation of the previous generate_synthetic_data function. 
+    #        However, it does not exactly reproduced our results due to a slightly different simulation process.
+
+    #     Args:
+    #         nb_features (_type_): _description_
+    #         nb_obs (_type_): _description_
+    #         tho (_type_): _description_
+    #         additional_s (_type_): _description_
+    #         t_unfair (_type_): _description_
+    #         T_mean (_type_): _description_
+    #         T_std (_type_): _description_
+    #         t_correl (_type_): _description_
+    #         random_seed (_type_): _description_
+
+    #     Returns:
+    #         _type_: _description_
+    #     """
+    #     # Set random seed if provided
+    #     if random_seed is not None:
+    #         np.random.seed(random_seed)
+
+    #     # Simulation of S
+    #     param = {}
+    #     param['q'] = 1 - norm.pdf(tho, loc=0, scale=1)
+    #     param['S'] = np.random.binomial(1, param['q'], (nb_obs)) + 1 + additional_s * np.random.binomial(1, param['q'], (nb_obs))
+    #     data = pd.DataFrame({"S": param['S']})
+
+    #     # Initialization of mean and std
+    #     n_binomial, p_binomial = 3, np.random.uniform(low=0.0, high=1.0, size=nb_features)
+    #     mu_1 = np.random.binomial(n_binomial, p_binomial, nb_features)
+    #     std_1 = np.random.uniform(low=0.0, high=2.0) * np.ones(nb_features)
+
+    #     if T_mean == 0: 
+    #         mu_2 = mu_1
+    #     else:
+    #         # Group-dependant mean
+    #         mu_2 = mu_1 + T_mean * np.ones(nb_features)
+        
+    #     if T_std == 0:  
+    #             std_2 = std_1
+    #     else:
+    #         # Group-dependant std
+    #         std_2 = std_1 + np.sqrt(T_std)* np.ones(nb_features)
+        
+    #     # Generate covariance matrices for each group
+    #     if t_correl == 0:
+    #         # Independant feature case
+    #         cov_1 = np.diag(std_1**2)
+    #         cov_2 = np.diag(std_2**2)
+    #     else:
+    #         diag_1 = np.diag(std_1**2)
+    #         diag_2 = np.diag(std_2**2)
+            
+    #         A_1 = np.random.normal(0, 1, (nb_features, nb_features))
+    #         corr_1 = A_1.T @ A_1
+    #         corr_1 = corr_1 / np.outer(np.sqrt(np.diag(corr_1)), np.sqrt(np.diag(corr_1)))
+            
+    #         if t_correl == 1:
+    #             corr_2 = corr_1
+    #         else:
+    #             # Group-dependant correlations/covariances
+    #             A_2 = np.random.normal(0, 1, (nb_features, nb_features))
+    #             corr_2 = A_2.T @ A_2
+    #             corr_2 = corr_2 / np.outer(np.sqrt(np.diag(corr_2)), np.sqrt(np.diag(corr_2)))
+            
+    #         # t_correl drives the correlation strengh
+    #         corr_1 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_1
+    #         corr_2 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_2
+            
+    #         cov_1 = np.sqrt(diag_1) @ corr_1 @ np.sqrt(diag_1)
+    #         cov_2 = np.sqrt(diag_2) @ corr_2 @ np.sqrt(diag_2)
+        
+    #     # Generate X conditionally on S using the covariance matrices
+    #     X_all = np.zeros((nb_obs, nb_features))
+    #     indices_1 = data.index[data['S'] == 1].tolist()
+    #     indices_2 = data.index[data['S'] == 2].tolist()
+        
+    #     param['X_1'] = np.random.multivariate_normal(mean=mu_1, cov=cov_1, size=len(indices_1))
+    #     X_all[indices_1] = param['X_1']
+    #     param['X_2'] = np.random.multivariate_normal(mean=mu_2, cov=cov_2, size=len(indices_2))
+    #     X_all[indices_2] = param['X_2']
+
+    #     # Add X columns to the dataframe
+    #     for j in range(nb_features):
+    #         data[f'X_{j}'] = X_all[:, j]
+
+    #     # Calculate Y as sum of X features plus t*S
+    #     Y = np.sum(X_all, axis=1) + t_unfair * data['S'].values
+    #     data['Y'] = Y
+
+    #     # Reset random seed to avoid affecting other code
+    #     if random_seed is not None:
+    #         np.random.seed(None)
+        
+    #     return data, param
 
 
     def compute_unf_linear_model(param_dictionnary, test_dataset, S_variable): 
@@ -331,6 +439,107 @@ class Data :
         results_df_exp = pd.DataFrame(results_df_exp)
             
         return all_results, results_df_exp, test_dataset, pool_dataset, param_dictionnary
+    
+
+    
+        # def generate_synthetic_data(nb_features, nb_obs, tho, additional_s, t_unfair, T_mean, T_std, t_correl, random_seed):
+        #     """Generate a syntetic dataset parametrized by (t_unfair, T_mean, T_std, t_correl)
+        #        This function is a simpler implementation of the previous generate_synthetic_data function. 
+        #        However, it does not exactly reproduced our results due to a slightly different simulation process.
+
+        #     Args:
+        #         nb_features (_type_): _description_
+        #         nb_obs (_type_): _description_
+        #         tho (_type_): _description_
+        #         additional_s (_type_): _description_
+        #         t_unfair (_type_): _description_
+        #         T_mean (_type_): _description_
+        #         T_std (_type_): _description_
+        #         t_correl (_type_): _description_
+        #         random_seed (_type_): _description_
+
+        #     Returns:
+        #         _type_: _description_
+        #     """
+        #     # Set random seed if provided
+        #     if random_seed is not None:
+        #         np.random.seed(random_seed)
+
+        #     # Simulation of S
+        #     param = {}
+        #     param['q'] = 1 - norm.pdf(tho, loc=0, scale=1)
+        #     param['S'] = np.random.binomial(1, param['q'], (nb_obs)) + 1 + additional_s * np.random.binomial(1, param['q'], (nb_obs))
+        #     data = pd.DataFrame({"S": param['S']})
+
+        #     # Initialization of mean and std
+        #     n_binomial, p_binomial = 3, np.random.uniform(low=0.0, high=1.0, size=nb_features)
+        #     mu_1 = np.random.binomial(n_binomial, p_binomial, nb_features)
+        #     std_1 = np.random.uniform(low=0.0, high=2.0) * np.ones(nb_features)
+
+        #     if T_mean == 0: 
+        #         mu_2 = mu_1
+        #     else:
+        #         # Group-dependant mean
+        #         mu_2 = mu_1 + T_mean * np.ones(nb_features)
+            
+        #     if T_std == 0:  
+        #             std_2 = std_1
+        #     else:
+        #         # Group-dependant std
+        #         std_2 = std_1 + np.sqrt(T_std)* np.ones(nb_features)
+            
+        #     # Generate covariance matrices for each group
+        #     if t_correl == 0:
+        #         # Independant feature case
+        #         cov_1 = np.diag(std_1**2)
+        #         cov_2 = np.diag(std_2**2)
+        #     else:
+        #         diag_1 = np.diag(std_1**2)
+        #         diag_2 = np.diag(std_2**2)
+                
+        #         A_1 = np.random.normal(0, 1, (nb_features, nb_features))
+        #         corr_1 = A_1.T @ A_1
+        #         corr_1 = corr_1 / np.outer(np.sqrt(np.diag(corr_1)), np.sqrt(np.diag(corr_1)))
+                
+        #         if t_correl == 1:
+        #             corr_2 = corr_1
+        #         else:
+        #             # Group-dependant correlations/covariances
+        #             A_2 = np.random.normal(0, 1, (nb_features, nb_features))
+        #             corr_2 = A_2.T @ A_2
+        #             corr_2 = corr_2 / np.outer(np.sqrt(np.diag(corr_2)), np.sqrt(np.diag(corr_2)))
+                
+        #         # t_correl drives the correlation strengh
+        #         corr_1 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_1
+        #         corr_2 = (1 - t_correl) * np.eye(nb_features) + t_correl * corr_2
+                
+        #         cov_1 = np.sqrt(diag_1) @ corr_1 @ np.sqrt(diag_1)
+        #         cov_2 = np.sqrt(diag_2) @ corr_2 @ np.sqrt(diag_2)
+            
+        #     # Generate X conditionally on S using the covariance matrices
+        #     X_all = np.zeros((nb_obs, nb_features))
+        #     indices_1 = data.index[data['S'] == 1].tolist()
+        #     indices_2 = data.index[data['S'] == 2].tolist()
+            
+        #     param['X_1'] = np.random.multivariate_normal(mean=mu_1, cov=cov_1, size=len(indices_1))
+        #     X_all[indices_1] = param['X_1']
+        #     param['X_2'] = np.random.multivariate_normal(mean=mu_2, cov=cov_2, size=len(indices_2))
+        #     X_all[indices_2] = param['X_2']
+
+        #     # Add X columns to the dataframe
+        #     for j in range(nb_features):
+        #         data[f'X_{j}'] = X_all[:, j]
+
+        #     # Calculate Y as sum of X features plus t*S
+        #     Y = np.sum(X_all, axis=1) + t_unfair * data['S'].values
+        #     data['Y'] = Y
+
+        #     # Reset random seed to avoid affecting other code
+        #     if random_seed is not None:
+        #         np.random.seed(None)
+            
+        #     return data, param
+
 
 class Visualization : 
 
